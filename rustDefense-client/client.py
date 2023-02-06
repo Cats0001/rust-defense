@@ -4,18 +4,29 @@ import winreg
 import vdf
 import psutil
 import json
+import cli_ui
+import srcs.helpers as helpers
 
-env_data = json.load(open('conf.json', 'r'))
+env_data = json.load(open('srcs/conf.json', 'r'))
 
 debug = False
+
+menu_loop = True
+while menu_loop:
+    choices = ["Add/Remove Phone Number", "Start Program"]
+
+    selection = cli_ui.ask_choice("Choose an action", choices=choices)
+
+    if selection == "Add/Remove Phone Number":
+        helpers.phone_operations()
+    elif selection == "Start Program":
+        menu_loop = False
 
 sio = socketio.Client()
 sio.connect(env_data["url"])
 
-print(f'Connection established with SID {sio.sid}\n')
-
-print(f'Waiting for raid signal [Do not exit the app]')
-
+cli_ui.info_2(f'Connection established with SID {sio.sid}\n')
+cli_ui.info_1(f'Waiting for raid signal [Do not exit the app]')
 
 if debug:
     @sio.on('test_event')
@@ -25,7 +36,7 @@ if debug:
 
 @sio.on('raid')
 def raid_alert(server):
-    print("Raid signal received. Launching Rust and connecting to the server!")
+    cli_ui.info_1("Raid signal received. Launching Rust and connecting to the server!")
 
     if "RustClient.exe" not in (p.name() for p in psutil.process_iter()):
         hkey_local = winreg.ConnectRegistry(None, winreg.HKEY_LOCAL_MACHINE)

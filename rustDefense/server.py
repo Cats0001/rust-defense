@@ -42,6 +42,37 @@ if env_data["development"]:
         return Response('200')
 
 
+@app.route('/phone', methods=["POST"])
+def number_actions():
+    data = request.json
+    if data["password"] != env_data["data"]["general"]["password"]:
+        return Response(status=401)
+
+    phone = str(data["number"])
+    if data["action"] == "add":
+        if not (phone.isdigit() and len(phone) == 10):
+            return Response(status=400)  # if not valid
+
+        if Phone.query.filter_by(phone=phone).first() is not None:
+            return Response(status=400)  # if not unique
+
+        new_phone = Phone(phone, data["hostname"])
+        db.session.add(new_phone)
+        db.session.commit()
+
+        return Response(status=200)
+
+    if data["action"] == "remove":
+        phone_object = Phone.query.filter_by(phone=phone).first()
+        if phone_object is None:
+            return Response(status=400)
+
+        db.session.delete(phone_object)
+        db.session.commit()
+
+        return Response(status=200)
+
+
 @app.route('/api/alarm', methods=["POST"])
 def rust():
     if request.headers.get('x-auth-key') != env_data["data"]["general"]["auth_key"]:
@@ -130,4 +161,4 @@ class Alarm(db.Model):
 
 
 if __name__ == "__main__":
-    socket_.run(app, debug=True, port=6262)
+    socket_.run(app, port=6262, allow_unsafe_werkzeug=True)
