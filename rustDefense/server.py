@@ -4,7 +4,7 @@ from uuid import uuid4
 from flask import Flask, request, abort, Response
 from flask_socketio import SocketIO
 from flask_sqlalchemy import SQLAlchemy
-from srcs.helpers import send_alerts
+from srcs.helpers import send_alerts, WebhookSender
 from threading import Lock
 import time
 from sqlalchemy import ForeignKey
@@ -15,13 +15,16 @@ env_data = json.load(open('srcs/env.json', 'r'))
 cooldown = env_data["data"]["general"]["cooldown"]
 server = env_data["data"]["general"]["server"]
 
+hook_url = env_data["data"]["general"]["webhook"]
+Webhook = WebhookSender(hook_url)
+
 async_mode = None
 
 app = Flask(__name__)
 socket_ = SocketIO(app, async_mode=async_mode)
 
 # database
-file_path = os.path.abspath(os.getcwd()) + r"\data.db"
+file_path = "data.db"
 app.config['SQLALCHEMY_DATABASE_URI'] = 'sqlite:///' + file_path
 db = SQLAlchemy(app)
 
@@ -37,8 +40,15 @@ def index():
 if env_data["development"]:
     @app.route('/api/test')
     def test():
-        socket_.emit('test_event')
-        socket_.emit('raid', server)
+        if request.args.get('event') == 'test':
+            socket_.emit('test_event')
+            Webhook.send_event('Test Event', 'n/a')
+        elif request.args.get('event') == 'raid':
+            socket_.emit('raid', server)
+            Webhook.send_event('Raid Alarm', 'TEST EVENT')
+        else:
+            abort(400)
+
         return Response('200')
 
 
@@ -60,6 +70,7 @@ def number_actions():
         db.session.add(new_phone)
         db.session.commit()
 
+        Webhook.send_event('Phone Added', new_phone.user)
         return Response(status=200)
 
     if data["action"] == "remove":
@@ -70,6 +81,7 @@ def number_actions():
         db.session.delete(phone_object)
         db.session.commit()
 
+        Webhook.send_event('Phone Removed', phone_object.user)
         return Response(status=200)
 
 
@@ -103,6 +115,7 @@ def rust():
             alarm.cooldown_expiration = int(time.time()) + cooldown
             db.session.commit()
 
+        Webhook.send_event('Raid Alarm', alarm_id)
         return 'Success'
 
 
